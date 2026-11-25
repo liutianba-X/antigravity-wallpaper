@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Antigravity Wallpaper · 预览</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#10131b;color:#e8edf6;font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+    main{position:relative;z-index:1;pointer-events:none;max-width:800px;margin:12vh auto;padding:36px}
+    .tag{font-size:12px;letter-spacing:3px;color:#bdd2ff}h1{font-size:clamp(32px,5vw,56px);line-height:1.2;margin:20px 0}
+    p{max-width:540px;color:#d1d9e8}.card{margin-top:32px;border:1px solid #ffffff35;background:#10182799;border-radius:16px;padding:24px;backdrop-filter:blur(8px)}
+    code{color:#b4cdfd}#result{font-size:13px;color:#bbcbe5}
+  </style>
+</head>
+<body>
+  <main><span class="tag">ANTIGRAVITY × WALLPAPER ENGINE</span><h1>让工作台，<br>有自己的风景。</h1>
+    <p>本地壁纸预览。点击右下角「壁纸」，切换 Video / Web 壁纸，调节暗色遮罩。</p>
+    <div class="card"><strong>画面在底层，内容在眼前。</strong><p>视频默认静音循环。选择和暗度会自动保存；连接 Antigravity 后，工作台里也会出现相同的控制按钮。</p><code>Node.js · Steam Workshop · CDP</code></div>
+    <p id="result">正在读取本地壁纸…</p>
+  </main>
+  <script src="/client.js"></script>
+  <script>
+    (async () => {
+      const response = await fetch('/api/wallpapers');
+      const { wallpapers, counts } = await response.json();
+      await window.__agWallpaperInstall({ baseUrl: location.origin, wallpapers });
+      document.querySelector('#result').textContent = `可播放 ${wallpapers.length} 张 · 本地类型：${Object.entries(counts).map(([type,count]) => `${type} ${count}`).join(' / ')}`;
+    })().catch(error => document.querySelector('#result').textContent = error.message);
+  </script>
+</body>
+</html>

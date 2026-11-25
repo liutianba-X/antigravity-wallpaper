@@ -1,0 +1,34 @@
+{
+  "name": "antigravity-wallpaper",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "liutianba-X",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liutianba-X/antigravity-wallpaper.git"
+  },
+  "homepage": "https://github.com/liutianba-X/antigravity-wallpaper#readme",
+  "bugs": {
+    "url": "https://github.com/liutianba-X/antigravity-wallpaper/issues"
+  },
+  "type": "module",
+  "description": "Play local Wallpaper Engine video/web wallpapers and custom images/videos inside Antigravity via CDP. Zero dependencies.",
+  "keywords": [
+    "antigravity",
+    "wallpaper",
+    "wallpaper-engine",
+    "cdp",
+    "theme"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "list": "node src/cli.js --list",
+    "preview": "node src/cli.js --serve-only",
+    "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/launch.ps1",
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1",
+    "test": "node --test"
+  }
+}
