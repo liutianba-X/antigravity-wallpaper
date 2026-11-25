@@ -40,7 +40,7 @@ npm run shortcut
 如果 Antigravity 安装在非默认路径，或需要配合代理使用，可以在生成快捷方式时传入参数：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-shortcut.ps1 -Exe "D:\Apps\Antigravity\Antigravity.exe" -Proxy "http://127.0.0.1:7890"
+npm run shortcut -- -Exe "D:\Apps\Antigravity\Antigravity.exe" -Proxy "http://127.0.0.1:7890"
 ```
 
 ### 方式二：命令行直接启动
