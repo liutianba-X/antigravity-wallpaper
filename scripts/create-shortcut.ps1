@@ -3,7 +3,9 @@ param(
     [string]$Exe,
     [int]$Port = 32190,
     [int]$CdpPort = 9222,
-    [string]$Proxy
+    [string]$Proxy,
+    [string]$Steam,
+    [string[]]$Library
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,6 +32,15 @@ if ($Exe) {
 }
 if ($Proxy) {
     $argParts += @('-Proxy', ('"' + $Proxy + '"'))
+}
+if ($Steam) {
+    $argParts += @('-Steam', ('"' + $Steam + '"'))
+}
+if ($Library) {
+    $cleanLibs = @($Library | Where-Object { $_ })
+    if ($cleanLibs.Count -gt 0) {
+        $argParts += @('-Library', ('"' + ($cleanLibs -join ';') + '"'))
+    }
 }
 
 $desktop = [Environment]::GetFolderPath('Desktop')

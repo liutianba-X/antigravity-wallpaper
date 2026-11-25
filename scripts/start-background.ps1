@@ -1,6 +1,8 @@
 param(
     [int]$Port = 32190,
-    [int]$CdpPort = 9222
+    [int]$CdpPort = 9222,
+    [string]$Steam,
+    [string[]]$Library
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,4 +21,14 @@ if ($listener) {
 
 $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
 $cliArgs = @('src/cli.js', '--port', "$Port", '--cdp-port', "$CdpPort")
+if ($Steam) {
+    $cliArgs += @('--steam', $Steam)
+}
+foreach ($entry in $Library) {
+    foreach ($lib in ($entry -split ';')) {
+        if ($lib) {
+            $cliArgs += @('--library', $lib)
+        }
+    }
+}
 Start-Process -FilePath $nodePath -ArgumentList $cliArgs -WorkingDirectory $projectDirectory -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDirectory 'service.log') -RedirectStandardError (Join-Path $logDirectory 'service-error.log')

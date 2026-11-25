@@ -37,10 +37,10 @@ npm run shortcut
 
 之后**先完全退出已打开的 Antigravity**，再直接双击桌面快捷方式即可：它会自动静默拉起后台壁纸服务（无终端黑框）并带调试端口启动 Antigravity。
 
-如果 Antigravity 安装在非默认路径，或需要配合代理使用，可以在生成快捷方式时传入参数：
+如果 Antigravity 安装在非默认路径、需要配合代理，或需要手动指定 Steam / 壁纸库目录，可以在生成快捷方式时传入参数：
 
 ```powershell
-npm run shortcut -- -Exe "D:\Apps\Antigravity\Antigravity.exe" -Proxy "http://127.0.0.1:7890"
+npm run shortcut -- -Exe "D:\Apps\Antigravity\Antigravity.exe" -Proxy "http://127.0.0.1:7890" -Steam "D:\Steam" -Library "E:\SteamLibrary"
 ```
 
 ### 方式二：命令行直接启动

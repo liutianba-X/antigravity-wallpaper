@@ -2,13 +2,18 @@ param(
     [string]$Exe,
     [int]$Port = 32190,
     [int]$CdpPort = 9222,
-    [string]$Proxy
+    [string]$Proxy,
+    [string]$Steam,
+    [string[]]$Library
 )
 
 $ErrorActionPreference = 'Stop'
 $startScript = Join-Path $PSScriptRoot 'start-background.ps1'
 
-& $startScript -Port $Port -CdpPort $CdpPort
+$startParams = @{ Port = $Port; CdpPort = $CdpPort }
+if ($Steam) { $startParams.Steam = $Steam }
+if ($Library) { $startParams.Library = $Library }
+& $startScript @startParams
 
 if (-not $Exe) {
     $Exe = Join-Path $env:LOCALAPPDATA 'Programs\antigravity\Antigravity.exe'
@@ -23,7 +28,9 @@ $launchArgs = @(
     '--remote-debugging-address=127.0.0.1'
 )
 if ($Proxy) {
-    $launchArgs += "--proxy-server=$Proxy"
+    $env:HTTP_PROXY = $Proxy
+    $env:HTTPS_PROXY = $Proxy
+    $env:NO_PROXY = 'localhost,127.0.0.1'
 }
 
 Start-Process -FilePath $Exe -ArgumentList $launchArgs
