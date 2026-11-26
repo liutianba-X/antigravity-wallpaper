@@ -1,5 +1,9 @@
 # Antigravity Wallpaper
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![LINUX DO](https://img.shields.io/badge/Community-LINUX%20DO-1c1c1e)](https://linux.do)
+
 在 Antigravity 中显示本机 **Wallpaper Engine** 的视频 / 网页壁纸，或导入自己的本地视频与图片作为动态背景。
 
 纯 Node.js 实现，**零第三方依赖**（无需 `npm install`），不修改客户端安装文件。
@@ -111,6 +115,10 @@ npm start -- --library "E:\SteamLibrary\steamapps\workshop\content\431960"
 ```powershell
 npm test
 ```
+
+## 社区
+
+感谢 [LINUX DO](https://linux.do) 社区的交流与支持，欢迎在社区或 GitHub Issues 反馈建议。
 
 ## License
 
