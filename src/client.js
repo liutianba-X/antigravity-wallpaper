@@ -14,9 +14,13 @@
     const saved = JSON.parse(localStorage.getItem('ag-wallpaper-settings') || '{}');
     let current = wallpapers.find((item) => item.id === saved.id) || wallpapers.find((item) => item.type === 'video') || wallpapers[0];
     let dim = typeof saved.darkness === 'number' ? Math.min(0.95, Math.max(0, saved.darkness)) : darkness;
+    let muted = typeof saved.muted === 'boolean' ? saved.muted : true;
+    let volume = typeof saved.volume === 'number' && Number.isFinite(saved.volume) ? Math.min(1, Math.max(0, saved.volume)) : 0.6;
+    let showProgress = typeof saved.showProgress === 'boolean' ? saved.showProgress : true;
     let media;
     let enabled = true;
     let active = true;
+    let seeking = false;
 
     const style = document.createElement('style');
     style.id = 'ag-wallpaper-style';
@@ -193,6 +197,20 @@
         #delete:hover { background:rgba(239,68,68,.22); border-color:rgba(248,113,113,.4); }
         #remove { border:0; background:transparent; color:rgba(255,255,255,.62); }
         #remove:hover { background:rgba(255,255,255,.08); color:#fff; }
+        #video-controls { margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.1); }
+        .video-header { margin-bottom:8px; }
+        .section-title { font-size:12px; font-weight:600; color:rgba(255,255,255,.82); }
+        .checkbox-label { display:inline-flex; align-items:center; gap:6px; margin:0; font-size:12px; color:rgba(255,255,255,.72); cursor:pointer; user-select:none; }
+        .checkbox-label input { margin:0; accent-color:#e4e4e7; cursor:pointer; }
+        #progress-wrap { margin-bottom:10px; }
+        .progress-meta { font-size:11px; color:rgba(255,255,255,.62); font-variant-numeric:tabular-nums; margin-bottom:4px; }
+        #progress:disabled { opacity:.4; cursor:not-allowed; }
+        .audio-row { display:flex; align-items:center; gap:8px; }
+        #mute { width:32px; height:30px; padding:0; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; }
+        #mute svg { width:15px; height:15px; display:block; }
+        #mute[aria-pressed="false"] { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.28); color:#fff; }
+        #volume { flex:1; min-width:0; }
+        #volume-value { width:34px; text-align:right; font-size:12px; color:rgba(255,255,255,.72); font-variant-numeric:tabular-nums; flex:0 0 auto; }
       </style>
       <section id="panel" hidden aria-label="壁纸设置">
         <h3>Wallpaper Engine · 本地壁纸</h3>
@@ -213,6 +231,27 @@
         <input id="file-input" type="file" hidden multiple accept=".mp4,.webm,.m4v,.mov,.jpg,.jpeg,.png,.webp,.gif,.bmp">
         <label for="darkness" class="row"><span>暗色遮罩</span><output id="value"></output></label>
         <input id="darkness" type="range" min="0" max="95" step="1">
+        <div id="video-controls" hidden>
+          <div class="row video-header">
+            <span class="section-title">视频控制</span>
+            <label class="checkbox-label">
+              <input id="show-progress" type="checkbox">
+              <span>显示进度条</span>
+            </label>
+          </div>
+          <div id="progress-wrap">
+            <div class="row progress-meta">
+              <span id="time-current">00:00</span>
+              <span id="time-duration">--:--</span>
+            </div>
+            <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled aria-label="视频进度">
+          </div>
+          <div class="audio-row">
+            <button id="mute" type="button" aria-pressed="true" aria-label="开启声音" title="开启声音"></button>
+            <input id="volume" type="range" min="0" max="100" step="1" aria-label="音量">
+            <output id="volume-value">60%</output>
+          </div>
+        </div>
         <p id="status" role="status"></p>
         <div class="row"><button id="enabled" type="button">暂停壁纸</button><button id="remove" type="button">移除背景</button></div>
       </section>
@@ -243,6 +282,70 @@
     const renameSave = shadow.querySelector('#rename-save');
     const renameCancel = shadow.querySelector('#rename-cancel');
     const fileInput = shadow.querySelector('#file-input');
+    const videoControls = shadow.querySelector('#video-controls');
+    const showProgressInput = shadow.querySelector('#show-progress');
+    const progressWrap = shadow.querySelector('#progress-wrap');
+    const progressSlider = shadow.querySelector('#progress');
+    const timeCurrent = shadow.querySelector('#time-current');
+    const timeDuration = shadow.querySelector('#time-duration');
+    const muteButton = shadow.querySelector('#mute');
+    const volumeSlider = shadow.querySelector('#volume');
+    const volumeValue = shadow.querySelector('#volume-value');
+    const iconMuted = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+    const iconSound = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+    const formatTime = (seconds) => {
+      if (!Number.isFinite(seconds) || seconds < 0) return '--:--';
+      const total = Math.floor(seconds);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    };
+    const videoStatusText = (item) => {
+      if (!enabled) return `视频已暂停 · ${item.title}`;
+      return muted ? `视频 · 静音循环 · ${item.title}` : `视频 · 有声循环 (${Math.round(volume * 100)}%) · ${item.title}`;
+    };
+    const syncAudioUi = () => {
+      const effectiveMuted = muted || volume === 0;
+      muteButton.innerHTML = effectiveMuted ? iconMuted : iconSound;
+      muteButton.setAttribute('aria-pressed', String(effectiveMuted));
+      const label = effectiveMuted ? '开启声音' : '静音';
+      muteButton.setAttribute('aria-label', label);
+      muteButton.title = label;
+      const pct = Math.round(volume * 100);
+      volumeSlider.value = String(effectiveMuted ? 0 : pct);
+      volumeValue.textContent = effectiveMuted ? '静音' : `${pct}%`;
+    };
+    const applyAudio = () => {
+      if (media?.tagName === 'VIDEO') {
+        media.muted = muted || volume === 0;
+        media.volume = volume;
+      }
+      syncAudioUi();
+    };
+    const syncProgressUi = () => {
+      const video = media?.tagName === 'VIDEO' ? media : null;
+      const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+      progressSlider.max = String(duration);
+      progressSlider.disabled = !duration;
+      timeDuration.textContent = duration ? formatTime(duration) : '--:--';
+      if (!seeking) {
+        const currentTime = video && duration ? Math.min(duration, Math.max(0, video.currentTime || 0)) : 0;
+        progressSlider.value = String(currentTime);
+        timeCurrent.textContent = duration ? formatTime(currentTime) : '00:00';
+      }
+    };
+    const syncVideoControlsVisibility = () => {
+      const isVideo = active && current?.type === 'video';
+      videoControls.hidden = !isVideo;
+      showProgressInput.checked = showProgress;
+      progressWrap.hidden = !showProgress;
+      if (isVideo) {
+        syncAudioUi();
+        syncProgressUi();
+      }
+    };
     const closeRename = () => { renameRow.hidden = true; renameInput.value = ''; };
     const syncSelect = () => {
       select.textContent = '';
@@ -278,7 +381,13 @@
       } catch { /* 忽略临时网络错误 */ }
     };
     syncSelect();
-    const persist = () => localStorage.setItem('ag-wallpaper-settings', JSON.stringify({ id: current?.id, darkness: dim }));
+    const persist = () => localStorage.setItem('ag-wallpaper-settings', JSON.stringify({
+      id: current?.id,
+      darkness: dim,
+      muted,
+      volume,
+      showProgress,
+    }));
     const setDarkness = () => {
       shade.style.opacity = String(dim);
       slider.value = String(Math.round(dim * 100));
@@ -286,10 +395,12 @@
     };
     const assetUrl = (wallpaper) => `${baseUrl}/wallpapers/${encodeURIComponent(wallpaper.id)}/${wallpaper.file.split('/').map(encodeURIComponent).join('/')}`;
     function releaseMedia() {
+      seeking = false;
       if (!media) return;
       if (media.tagName === 'VIDEO') { media.pause(); media.removeAttribute('src'); media.load(); }
       media.remove();
       media = null;
+      syncProgressUi();
     }
     const applyActiveState = (nextActive) => {
       active = nextActive;
@@ -307,6 +418,7 @@
         document.documentElement.classList.remove('ag-wallpaper-active');
         removeButton.textContent = '恢复背景';
         enabledButton.disabled = true;
+        syncVideoControlsVisibility();
         status.textContent = '已移除背景（点「恢复背景」或切换壁纸即可恢复）';
       }
     };
@@ -314,11 +426,12 @@
       releaseMedia();
       customActions.hidden = current?.source !== 'custom';
       if (customActions.hidden) closeRename();
+      syncVideoControlsVisibility();
       if (!active || !current || !enabled) return;
       const item = current;
       select.value = item.id;
       status.textContent = item.type === 'video'
-        ? `视频 · 静音循环 · ${item.title}`
+        ? videoStatusText(item)
         : item.type === 'image'
           ? `图片壁纸 · ${item.title}`
           : `网页壁纸 · ${item.title}`;
@@ -326,16 +439,40 @@
       media = document.createElement(tag);
       media.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;pointer-events:none;';
       if (item.type === 'video') {
-        media.muted = true;
-        media.loop = true;
-        media.autoplay = true;
-        media.playsInline = true;
-        media.addEventListener('error', () => { status.textContent = '视频加载失败，请确认本地壁纸服务正在运行或更换视频。'; }, { signal });
         const video = media;
-        video.addEventListener('loadeddata', () => { status.textContent = `视频 · 静音循环 · ${item.title}`; }, { signal });
+        video.muted = muted || volume === 0;
+        video.volume = volume;
+        video.loop = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.addEventListener('error', () => {
+          if (media === video) status.textContent = '视频加载失败，请确认本地壁纸服务正在运行或更换视频。';
+        }, { signal });
+        video.addEventListener('loadedmetadata', () => { if (media === video) syncProgressUi(); }, { signal });
+        video.addEventListener('durationchange', () => { if (media === video) syncProgressUi(); }, { signal });
+        video.addEventListener('timeupdate', () => { if (media === video) syncProgressUi(); }, { signal });
+        video.addEventListener('seeked', () => { if (media === video) syncProgressUi(); }, { signal });
+        video.addEventListener('loadeddata', () => {
+          if (media === video) {
+            syncProgressUi();
+            status.textContent = videoStatusText(item);
+          }
+        }, { signal });
         video.src = assetUrl(item);
         video.play().catch((error) => {
-          if (media === video && error.name !== 'AbortError') status.textContent = `播放失败：${error.message}`;
+          if (media !== video || error.name === 'AbortError') return;
+          if (error.name === 'NotAllowedError' && !video.muted) {
+            video.muted = true;
+            muted = true;
+            syncAudioUi();
+            video.play().then(() => {
+              if (media === video) status.textContent = '浏览器限制自动播放声音，已暂静音（点击音量图标开启）';
+            }).catch((retryError) => {
+              if (media === video && retryError.name !== 'AbortError') status.textContent = `播放失败：${retryError.message}`;
+            });
+            return;
+          }
+          status.textContent = `播放失败：${error.message}`;
         });
       } else if (item.type === 'image') {
         media.alt = item.title;
@@ -349,6 +486,7 @@
         media.src = assetUrl(item);
       }
       layer.prepend(media);
+      syncVideoControlsVisibility();
     }
     const setPanelOpen = (open) => {
       panel.hidden = !open;
@@ -366,6 +504,8 @@
     select.addEventListener('change', () => {
       closeRename();
       current = wallpapers.find((item) => item.id === select.value);
+      enabled = true;
+      enabledButton.textContent = '暂停壁纸';
       if (!active) applyActiveState(true);
       else render();
       persist();
@@ -476,9 +616,74 @@
       }
     }, { signal });
     slider.addEventListener('input', () => { dim = Number(slider.value) / 100; setDarkness(); persist(); }, { signal });
+    showProgressInput.addEventListener('change', () => {
+      showProgress = showProgressInput.checked;
+      progressWrap.hidden = !showProgress;
+      if (showProgress) syncProgressUi();
+      persist();
+    }, { signal });
+    const seekTo = (value) => {
+      if (media?.tagName !== 'VIDEO' || !Number.isFinite(media.duration) || media.duration <= 0) return;
+      const target = Math.min(media.duration, Math.max(0, Number(value)));
+      if (Number.isFinite(target)) media.currentTime = target;
+    };
+    progressSlider.addEventListener('pointerdown', () => { seeking = true; }, { signal });
+    progressSlider.addEventListener('input', () => {
+      seeking = true;
+      timeCurrent.textContent = formatTime(Number(progressSlider.value));
+      seekTo(progressSlider.value);
+    }, { signal });
+    progressSlider.addEventListener('change', () => {
+      seekTo(progressSlider.value);
+      seeking = false;
+      syncProgressUi();
+    }, { signal });
+    const endSeek = () => {
+      if (!seeking) return;
+      seeking = false;
+      syncProgressUi();
+    };
+    addEventListener('pointerup', endSeek, { signal });
+    addEventListener('pointercancel', endSeek, { signal });
+    muteButton.addEventListener('click', () => {
+      const effectiveMuted = muted || volume === 0;
+      if (effectiveMuted) {
+        muted = false;
+        if (volume === 0) volume = 0.6;
+      } else {
+        muted = true;
+      }
+      applyAudio();
+      if (media?.tagName === 'VIDEO' && enabled && media.paused) {
+        media.play().catch(() => {});
+      }
+      if (current?.type === 'video') status.textContent = videoStatusText(current);
+      persist();
+    }, { signal });
+    volumeSlider.addEventListener('input', () => {
+      volume = Math.min(1, Math.max(0, Number(volumeSlider.value) / 100));
+      muted = volume === 0;
+      applyAudio();
+      if (media?.tagName === 'VIDEO' && !muted && enabled && media.paused) {
+        media.play().catch(() => {});
+      }
+      if (current?.type === 'video') status.textContent = videoStatusText(current);
+      persist();
+    }, { signal });
     enabledButton.addEventListener('click', () => {
       enabled = !enabled;
       enabledButton.textContent = enabled ? '暂停壁纸' : '继续播放';
+      if (current?.type === 'video' && media?.tagName === 'VIDEO') {
+        if (enabled) {
+          media.play().catch((error) => {
+            if (error.name !== 'AbortError') status.textContent = `播放失败：${error.message}`;
+          });
+        } else {
+          media.pause();
+        }
+        status.textContent = videoStatusText(current);
+        return;
+      }
       render();
       if (!enabled) status.textContent = '壁纸已暂停';
     }, { signal });
@@ -490,7 +695,19 @@
         document.documentElement.classList.remove('ag-wallpaper-active');
         if (window.__agWallpaper === api) delete window.__agWallpaper;
       },
-      getState() { return { id: current?.id, darkness: dim, enabled, type: current?.type }; },
+      getState() {
+        return {
+          id: current?.id,
+          darkness: dim,
+          enabled,
+          type: current?.type,
+          muted,
+          volume,
+          showProgress,
+          currentTime: media?.tagName === 'VIDEO' ? media.currentTime : null,
+          duration: media?.tagName === 'VIDEO' && Number.isFinite(media.duration) ? media.duration : null,
+        };
+      },
     };
     window.__agWallpaper = api;
     removeButton.addEventListener('click', () => applyActiveState(!active), { signal });
