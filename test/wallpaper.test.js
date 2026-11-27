@@ -271,12 +271,20 @@ test('客户端视频进度条、声音控制与暂停恢复逻辑', async () =>
   assert.equal(ui.get('#time-duration').textContent, '02:05');
   assert.equal(ui.get('#time-current').textContent, '00:12');
 
-  // 拖动进度条跳转到 65 秒
+  // 拖动进度条时仅预览时间，松手（pointerup -> change）后才跳转并保持播放
+  ui.get('#progress').dispatchEvent(new Event('pointerdown'));
   ui.get('#progress').value = '65';
   ui.get('#progress').dispatchEvent(new Event('input'));
-  assert.equal(video.currentTime, 65);
+  assert.equal(video.currentTime, 12);
   assert.equal(ui.get('#time-current').textContent, '01:05');
+  winTarget.dispatchEvent(new Event('pointerup'));
+  assert.equal(ui.get('#progress').value, '65');
+  video.paused = true;
   ui.get('#progress').dispatchEvent(new Event('change'));
+  assert.equal(video.currentTime, 65);
+  assert.equal(video.paused, false);
+  video.dispatchEvent(new Event('seeked'));
+  assert.equal(ui.get('#time-current').textContent, '01:05');
 
   // 取消勾选「显示进度条」可隐藏进度栏并持久化
   ui.get('#show-progress').checked = false;

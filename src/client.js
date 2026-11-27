@@ -451,7 +451,21 @@
         video.addEventListener('loadedmetadata', () => { if (media === video) syncProgressUi(); }, { signal });
         video.addEventListener('durationchange', () => { if (media === video) syncProgressUi(); }, { signal });
         video.addEventListener('timeupdate', () => { if (media === video) syncProgressUi(); }, { signal });
-        video.addEventListener('seeked', () => { if (media === video) syncProgressUi(); }, { signal });
+        video.addEventListener('seeking', () => {
+          if (media === video && enabled) status.textContent = `正在跳转至 ${formatTime(video.currentTime)}…`;
+        }, { signal });
+        video.addEventListener('waiting', () => {
+          if (media === video && enabled) status.textContent = `正在缓冲 ${formatTime(video.currentTime)}…`;
+        }, { signal });
+        video.addEventListener('seeked', () => {
+          if (media !== video) return;
+          syncProgressUi();
+          if (enabled && video.paused) video.play().catch(() => {});
+          status.textContent = videoStatusText(item);
+        }, { signal });
+        video.addEventListener('playing', () => {
+          if (media === video) status.textContent = videoStatusText(item);
+        }, { signal });
         video.addEventListener('loadeddata', () => {
           if (media === video) {
             syncProgressUi();
@@ -625,23 +639,28 @@
     const seekTo = (value) => {
       if (media?.tagName !== 'VIDEO' || !Number.isFinite(media.duration) || media.duration <= 0) return;
       const target = Math.min(media.duration, Math.max(0, Number(value)));
-      if (Number.isFinite(target)) media.currentTime = target;
+      if (!Number.isFinite(target)) return;
+      media.currentTime = target;
+      timeCurrent.textContent = formatTime(target);
+      if (enabled && media.paused) media.play().catch(() => {});
     };
     progressSlider.addEventListener('pointerdown', () => { seeking = true; }, { signal });
     progressSlider.addEventListener('input', () => {
       seeking = true;
       timeCurrent.textContent = formatTime(Number(progressSlider.value));
-      seekTo(progressSlider.value);
     }, { signal });
     progressSlider.addEventListener('change', () => {
-      seekTo(progressSlider.value);
+      const target = progressSlider.value;
       seeking = false;
-      syncProgressUi();
+      seekTo(target);
     }, { signal });
     const endSeek = () => {
       if (!seeking) return;
-      seeking = false;
-      syncProgressUi();
+      setTimeout(() => {
+        if (!seeking) return;
+        seeking = false;
+        syncProgressUi();
+      }, 0);
     };
     addEventListener('pointerup', endSeek, { signal });
     addEventListener('pointercancel', endSeek, { signal });
