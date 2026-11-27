@@ -61,6 +61,18 @@ npm start -- --launch
 npm start -- --launch --exe "D:\Apps\Antigravity\Antigravity.exe"
 ```
 
+### 单独启动壁纸服务（不拉起 Antigravity）
+
+如果 Antigravity 已经以调试端口运行，只想单独启动或重启本地壁纸服务：
+
+```powershell
+# 前台运行（可查看日志，自动连接已运行的 Antigravity，Ctrl+C 停止）
+npm start
+
+# 或后台静默运行（日志写入 .local/service.log）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-background.ps1
+```
+
 ### 浏览器预览模式（不注入客户端）
 
 ```powershell
