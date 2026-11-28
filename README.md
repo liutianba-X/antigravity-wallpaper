@@ -61,16 +61,19 @@ npm start -- --launch
 npm start -- --launch --exe "D:\Apps\Antigravity\Antigravity.exe"
 ```
 
-### 单独启动壁纸服务（不拉起 Antigravity）
+### 单独启动 / 重启 / 停止壁纸服务（不拉起 Antigravity）
 
-如果 Antigravity 已经以调试端口运行，只想单独启动或重启本地壁纸服务：
+如果 Antigravity 已经以调试端口运行，或在 Steam 新下载了壁纸想快速刷新后台服务：
 
 ```powershell
+# 一键重启后台壁纸服务（推荐，新增 Steam 壁纸后可直接执行）
+npm run restart
+
+# 一键停止后台壁纸服务
+npm run stop
+
 # 前台运行（可查看日志，自动连接已运行的 Antigravity，Ctrl+C 停止）
 npm start
-
-# 或后台静默运行（日志写入 .local/service.log）
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-background.ps1
 ```
 
 ### 浏览器预览模式（不注入客户端）
