@@ -17,11 +17,12 @@ const { values } = parseArgs({ options: {
   port: { type: 'string', default: '32190' }, 'cdp-port': { type: 'string', default: '9222' },
   'target-match': { type: 'string' }, darkness: { type: 'string', default: '0.55' },
   launch: { type: 'boolean' }, exe: { type: 'string' },
+  'keep-alive': { type: 'boolean' },
 } });
 
 async function main() {
   if (values.help) {
-    console.log(`Antigravity Wallpaper\n\n  npm start                         扫描壁纸 + 服务 + 自动连接 CDP\n  npm run list                      列出可播放壁纸\n  npm run preview                   仅启动浏览器预览\n  npm start -- --launch              启动 Antigravity 并开启调试端口\n\n选项：\n  --steam <目录>                    指定 Steam 安装目录\n  --library <目录>                  添加 Steam 库或 431960 目录（可重复）\n  --port <端口>                     本地服务端口，默认 32190\n  --cdp-port <端口>                 调试端口，默认 9222\n  --targets                         列出 CDP 页面\n  --target-match <文字>             按页面 URL/标题选择注入目标\n  --darkness <0..0.95>               首次使用的暗色遮罩，默认 0.55\n  --exe <路径>                      指定 Antigravity.exe\n\n使用 --launch 前请从菜单退出已运行的 Antigravity。Ctrl+C 移除注入并停止服务。`);
+    console.log(`Antigravity Wallpaper\n\n  npm start                         扫描壁纸 + 服务 + 自动连接 CDP\n  npm run list                      列出可播放壁纸\n  npm run preview                   仅启动浏览器预览\n  npm start -- --launch              启动 Antigravity 并开启调试端口\n\n选项：\n  --steam <目录>                    指定 Steam 安装目录\n  --library <目录>                  添加 Steam 库或 431960 目录（可重复）\n  --port <端口>                     本地服务端口，默认 32190\n  --cdp-port <端口>                 调试端口，默认 9222\n  --targets                         列出 CDP 页面\n  --target-match <文字>             按页面 URL/标题选择注入目标\n  --darkness <0..0.95>               首次使用的暗色遮罩，默认 0.55\n  --exe <路径>                      指定 Antigravity.exe\n  --keep-alive                      Antigravity 退出后保持后台服务常驻\n\n使用 --launch 前请从菜单退出已运行的 Antigravity。默认随 Antigravity 退出自动关闭，也可按 Ctrl+C 停止。`);
     return;
   }
   const port = Number(values.port);
@@ -60,7 +61,13 @@ async function main() {
     child.unref();
   }
   console.log(`连接 ${endpoint}；如果客户端已在运行但没开调试端口，请退出后执行 npm start -- --launch。`);
-  stopWatching = await watchWorkbenches({ endpoint, targetMatch: values['target-match'], source: injectionSource(client, { baseUrl, wallpapers: publicLibrary(library), darkness }), onStatus(message) { connection.message = message; connection.state = message.startsWith('已') ? 'connected' : 'waiting'; console.log(message); } });
+  stopWatching = await watchWorkbenches({
+    endpoint,
+    targetMatch: values['target-match'],
+    source: injectionSource(client, { baseUrl, wallpapers: publicLibrary(library), darkness }),
+    onStatus(message) { connection.message = message; connection.state = message.startsWith('已') ? 'connected' : 'waiting'; console.log(message); },
+    onDisconnect: values['keep-alive'] ? undefined : shutdown,
+  });
 }
 
 main().catch((error) => { console.error(error.message); process.exitCode = 1; });

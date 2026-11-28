@@ -4,9 +4,10 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import http from 'node:http';
 import { discoverWorkshopRoots, libraryPaths, scanLibrary } from '../src/library.js';
 import { createWallpaperServer, parseRange } from '../src/server.js';
-import { isWorkbench, injectionSource } from '../src/cdp.js';
+import { isWorkbench, injectionSource, watchWorkbenches } from '../src/cdp.js';
 
 test('Steam 多库路径解析', () => {
   assert.deepEqual(libraryPaths(String.raw`"libraryfolders" { "0" { "path" "D:\\Steam" } "1" { "path" "E:\\SteamLibrary" } }`), ['D:\\Steam', 'E:\\SteamLibrary']);
@@ -317,4 +318,48 @@ test('客户端视频进度条、声音控制与暂停恢复逻辑', async () =>
   assert.equal(ui.get('#video-controls').hidden, true);
 
   sandbox.__agWallpaper.destroy();
+});
+
+test('Antigravity CDP 端口关闭后自动触发退出回调', async (t) => {
+  const mockCdp = http.createServer((req, res) => {
+    if (req.url === '/json/list') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('[]');
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise((resolve) => mockCdp.listen(0, '127.0.0.1', resolve));
+  const { port } = mockCdp.address();
+  let disconnected = false;
+  let resolveDisconnect;
+  const disconnectedPromise = new Promise((resolve) => { resolveDisconnect = resolve; });
+  let resolveConnected;
+  const connectedPromise = new Promise((resolve) => { resolveConnected = resolve; });
+
+  const stop = await watchWorkbenches({
+    endpoint: `http://127.0.0.1:${port}`,
+    source: '',
+    pollIntervalMs: 30,
+    disconnectThreshold: 2,
+    onStatus(message) {
+      if (message.includes('调试端口可用')) resolveConnected();
+    },
+    onDisconnect() {
+      disconnected = true;
+      resolveDisconnect();
+    },
+  });
+  t.after(async () => {
+    mockCdp.closeAllConnections();
+    mockCdp.close();
+    await stop();
+  });
+
+  await connectedPromise;
+  assert.equal(disconnected, false);
+  mockCdp.closeAllConnections();
+  await new Promise((resolve) => mockCdp.close(resolve));
+  await disconnectedPromise;
+  assert.equal(disconnected, true);
 });

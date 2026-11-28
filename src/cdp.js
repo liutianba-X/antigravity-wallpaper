@@ -59,16 +59,21 @@ export function isWorkbench(target, targetMatch) {
   return targetMatch ? `${target.title} ${target.url}`.toLowerCase().includes(targetMatch.toLowerCase()) : hub || /workbench(?:\.html|[-./])/i.test(target.url);
 }
 
-export async function watchWorkbenches({ endpoint, source, targetMatch, onStatus = console.log }) {
+export async function watchWorkbenches({ endpoint, source, targetMatch, onStatus = console.log, onDisconnect, disconnectThreshold = 2, pollIntervalMs = 2500 }) {
   const sessions = new Map();
   let stopped = false;
   let timer;
   let lastStatus;
+  let hasConnected = false;
+  let missedPolls = 0;
   const status = (message) => { if (lastStatus !== message) { onStatus(message); lastStatus = message; } };
   async function poll() {
     if (stopped) return;
     try {
-      const targets = (await getTargets(endpoint)).filter((target) => isWorkbench(target, targetMatch));
+      const allTargets = await getTargets(endpoint);
+      hasConnected = true;
+      missedPolls = 0;
+      const targets = allTargets.filter((target) => isWorkbench(target, targetMatch));
       for (const target of targets) {
         if (stopped || sessions.has(target.id)) continue;
         const cdp = await CdpSession.connect(target.webSocketDebuggerUrl);
@@ -89,9 +94,19 @@ export async function watchWorkbenches({ endpoint, source, targetMatch, onStatus
       }
       status(targets.length ? `已连接 ${targets.length} 个工作台，刷新页面后会自动恢复。` : '调试端口可用，等待 Antigravity 工作台页面…');
     } catch (error) {
+      if (hasConnected && onDisconnect) {
+        missedPolls += 1;
+        if (missedPolls >= disconnectThreshold) {
+          status(`Antigravity 调试端口 ${endpoint} 已关闭，壁纸服务自动退出。`);
+          stopped = true;
+          clearTimeout(timer);
+          void onDisconnect();
+          return;
+        }
+      }
       status(`等待 Antigravity 调试端口 ${endpoint}（${error.message}）`);
     }
-    if (!stopped) timer = setTimeout(poll, 2500);
+    if (!stopped) timer = setTimeout(poll, pollIntervalMs);
   }
   void poll();
   return async () => {

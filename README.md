@@ -39,7 +39,7 @@ cd antigravity-wallpaper
 npm run shortcut
 ```
 
-之后**先完全退出已打开的 Antigravity**，再直接双击桌面快捷方式即可：它会自动静默拉起后台壁纸服务（无终端黑框）并带调试端口启动 Antigravity。
+之后**先完全退出已打开的 Antigravity**，再直接双击桌面快捷方式即可：它会自动静默拉起壁纸服务（无终端黑框）并带调试端口启动 Antigravity；当 Antigravity 完全退出后，壁纸服务也会自动退出，不留常驻进程。
 
 如果 Antigravity 安装在非默认路径、需要配合代理，或需要手动指定 Steam / 壁纸库目录，可以在生成快捷方式时传入参数：
 
