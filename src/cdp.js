@@ -7,6 +7,7 @@ export class CdpSession extends EventEmitter {
     super();
     this.socket = socket;
     socket.addEventListener('message', ({ data }) => {
+      if (this.#pending.size === 0) return;
       const message = JSON.parse(data);
       if (message.id) {
         const pending = this.#pending.get(message.id);
@@ -15,7 +16,7 @@ export class CdpSession extends EventEmitter {
         clearTimeout(pending.timer);
         if (message.error) pending.reject(new Error(message.error.message));
         else pending.resolve(message.result);
-      } else this.emit(message.method, message.params);
+      }
     });
     socket.addEventListener('close', () => {
       for (const pending of this.#pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('CDP 连接已关闭')); }
@@ -106,7 +107,8 @@ export async function watchWorkbenches({ endpoint, source, targetMatch, onStatus
       }
       status(`等待 Antigravity 调试端口 ${endpoint}（${error.message}）`);
     }
-    if (!stopped) timer = setTimeout(poll, pollIntervalMs);
+    const nextDelay = sessions.size > 0 && pollIntervalMs === 2500 ? 5000 : pollIntervalMs;
+    if (!stopped) timer = setTimeout(poll, nextDelay);
   }
   void poll();
   return async () => {

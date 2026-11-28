@@ -13,9 +13,10 @@ test('Steam 多库路径解析', () => {
   assert.deepEqual(libraryPaths(String.raw`"libraryfolders" { "0" { "path" "D:\\Steam" } "1" { "path" "E:\\SteamLibrary" } }`), ['D:\\Steam', 'E:\\SteamLibrary']);
 });
 
-test('视频 Range：完整、开放、后缀和越界', () => {
+test('视频 Range：完整、开放、分片上限、后缀和越界', () => {
   assert.deepEqual(parseRange('bytes=2-5', 10), { start: 2, end: 5 });
   assert.deepEqual(parseRange('bytes=8-', 10), { start: 8, end: 9 });
+  assert.deepEqual(parseRange('bytes=0-', 20 * 1024 * 1024), { start: 0, end: 4 * 1024 * 1024 - 1 });
   assert.deepEqual(parseRange('bytes=-3', 10), { start: 7, end: 9 });
   assert.deepEqual(parseRange('bytes=8-100', 10), { start: 8, end: 9 });
   for (const header of ['bytes=10-', 'bytes=5-2', 'bytes=-0', 'bytes=-', 'bytes=1-2,4-5']) assert.equal(parseRange(header, 10), null);
@@ -117,7 +118,11 @@ test('扫描、本地文件服务、视频分片、Web 相对资源与路径隔�
   assert.equal(await partial.text(), '2345');
   const head = await fetch(url, { method: 'HEAD' });
   assert.equal(head.headers.get('content-length'), '10');
+  assert.ok(head.headers.get('etag'));
+  assert.equal(head.headers.get('cache-control'), 'private, max-age=86400');
   assert.equal(await head.text(), '');
+  const notModified = await fetch(url, { headers: { 'If-None-Match': head.headers.get('etag') } });
+  assert.equal(notModified.status, 304);
   const badRange = await fetch(url, { headers: { Range: 'bytes=99-' } });
   assert.equal(badRange.status, 416);
   const web = catalog.wallpapers.find((item) => item.type === 'web');

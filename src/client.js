@@ -109,7 +109,7 @@
       layoutTimer = setTimeout(() => {
         layoutTimer = null;
         layoutFrame = requestAnimationFrame(() => { layoutFrame = null; makeShellsTransparent(); });
-      }, 150);
+      }, 400);
     };
     const observer = new MutationObserver((mutations) => {
       if (!active) return;
@@ -139,6 +139,8 @@
       if (document.visibilityState === 'visible') {
         scheduleShellScan();
         if (enabled && media?.tagName === 'VIDEO' && media.paused) media.play().catch(() => {});
+      } else if (media?.tagName === 'VIDEO' && !media.paused) {
+        media.pause();
       }
     }, { signal });
 

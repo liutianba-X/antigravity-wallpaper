@@ -38,11 +38,18 @@ const mimeTypes = {
   '.wav': 'audio/wav', '.woff': 'font/woff', '.woff2': 'font/woff2', '.wasm': 'application/wasm',
 };
 
-export function parseRange(header, size) {
+const defaultRangeChunkSize = 4 * 1024 * 1024;
+const streamHighWaterMark = 256 * 1024;
+
+export function parseRange(header, size, maxChunkSize = defaultRangeChunkSize) {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header);
   if (!match || (!match[1] && !match[2]) || size === 0) return null;
   let start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
-  let end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  let end = match[1] && match[2]
+    ? Math.min(Number(match[2]), size - 1)
+    : match[1] && maxChunkSize > 0
+      ? Math.min(size - 1, start + maxChunkSize - 1)
+      : size - 1;
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) return null;
   return { start, end };
 }
@@ -158,7 +165,18 @@ export async function createWallpaperServer(library, { port = 32190, mode = 'pre
       const file = await resolveAsset(wallpaper.directory, decodeURIComponent(match[2]));
       const info = await stat(file);
       if (!info.isFile()) { response.writeHead(404).end(); return; }
-      const headers = { 'Content-Type': mimeTypes[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Accept-Ranges': 'bytes' };
+      const etag = `W/"${info.size}-${Math.trunc(info.mtimeMs)}"`;
+      const headers = {
+        'Content-Type': mimeTypes[path.extname(file).toLowerCase()] || 'application/octet-stream',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'private, max-age=86400',
+        ETag: etag,
+      };
+      if (!request.headers.range && request.headers['if-none-match'] === etag) {
+        response.writeHead(304, { 'Cache-Control': headers['Cache-Control'], ETag: etag });
+        response.end();
+        return;
+      }
       let range;
       if (request.headers.range) {
         range = parseRange(request.headers.range, info.size);
@@ -168,7 +186,7 @@ export async function createWallpaperServer(library, { port = 32190, mode = 'pre
       headers['Content-Length'] = range ? range.end - range.start + 1 : info.size;
       response.writeHead(range ? 206 : 200, headers);
       if (request.method === 'HEAD' || info.size === 0) { response.end(); return; }
-      await pipeline(createReadStream(file, range || {}), response);
+      await pipeline(createReadStream(file, range ? { ...range, highWaterMark: streamHighWaterMark } : { highWaterMark: streamHighWaterMark }), response);
     } catch (error) {
       if (response.headersSent) { response.destroy(); return; }
       const status = error.status || (error.code === 'ENOENT' ? 404 : error instanceof URIError ? 400 : 500);
